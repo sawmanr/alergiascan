@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AlergiaScan</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1D2621">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg: #F2F3ED;
+    --ink: #1D2621;
+    --ink-soft: #5B6560;
+    --accent: #35507A;
+    --accent-soft: #DCE3EE;
+    --danger: #C1432E;
+    --danger-soft: #F6DED9;
+    --safe: #3F7D52;
+    --safe-soft: #DEEAE1;
+    --warn: #C98A2E;
+    --warn-soft: #F3E4CC;
+    --card: #FBFBF8;
+    --line: #D9DACF;
+    --font-display: 'Roboto Condensed','Arial Narrow',sans-serif;
+    --font-body: system-ui,Roboto,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-tap-highlight-color:transparent;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    background:var(--bg);
+  }
+  /* ---- header con motivo de barras ---- */
+  header{
+    position:relative;
+    padding:22px 20px 18px;
+    background:var(--ink);
+    color:#F2F3ED;
+    overflow:hidden;
+  }
+  header::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image:repeating-linear-gradient(90deg,
+      rgba(242,243,237,.14) 0 2px,
+      transparent 2px 5px,
+      rgba(242,243,237,.14) 5px 6px,
+      transparent 6px 11px,
+      rgba(242,243,237,.14) 11px 14px,
+      transparent 14px 20px);
+    opacity:.5;
+  }
+  header h1{
+    position:relative;
+    font-family:var(--font-display);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    font-size:26px;
+    margin:0 0 2px;
+  }
+  header p{
+    position:relative;
+    margin:0;
+    font-size:13px;
+    color:#C7CCC3;
+  }
+  /* ---- tabs ---- */
+  main{flex:1;padding:18px 18px 90px;}
+  section[hidden]{display:none !important;}
+  h2{
+    font-family:var(--font-display);
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    font-size:15px;
+    color:var(--ink-soft);
+    margin:22px 0 10px;
+  }
+  h2:first-child{margin-top:0;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+  }
+  /* ---- chips de alérgenos ---- */
+  #chips-grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    font-family:var(--font-body);
+    font-size:14px;
+    padding:9px 14px;
+    border-radius:999px;
+    border:1.5px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .chip--on{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+    font-weight:600;
+  }
+  /* ---- alérgenos personalizados ---- */
+  .custom-row{display:flex;gap:8px;margin-top:4px;}
+  .custom-row input{
+    flex:1;
+    padding:11px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    font-size:15px;
+    background:#fff;
+    color:var(--ink);
+  }
+  .btn{
+    font-family:var(--font-body);
+    font-weight:600;
+    font-size:14px;
+    padding:11px 16px;
+    border-radius:8px;
+    border:none;
+    cursor:pointer;
+  }
+  .btn--accent{background:var(--accent);color:#fff;}
+  .btn--ghost{background:transparent;color:var(--accent);border:1.5px solid var(--accent);}
+  .btn--block{width:100%;padding:15px;font-size:16px;}
+  #custom-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--accent-soft);color:var(--accent);
+    border-radius:999px;padding:6px 6px 6px 12px;font-size:13px;
+  }
+  .pill__remove{
+    border:none;background:transparent;color:var(--accent);
+    font-size:16px;line-height:1;cursor:pointer;padding:2px 4px;
+  }
+  /* ---- switch de trazas ---- */
+  .switch-row{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;
+  }
+  .switch-row p{margin:0;font-size:14px;color:var(--ink-soft);}
+  .switch{
+    position:relative;width:46px;height:26px;flex:none;
+    background:var(--line);border-radius:999px;border:none;cursor:pointer;
+  }
+  .switch::after{
+    content:"";position:absolute;top:3px;left:3px;
+    width:20px;height:20px;border-radius:50%;background:#fff;
+    transition:transform .15s ease;
+  }
+  .switch--on{background:var(--accent);}
+  .switch--on::after{transform:translateX(20px);}
+  /* ---- escanear ---- */
+  #video{width:100%;border-radius:10px;background:#000;display:block;}
+  .scan-wrap{position:relative;border-radius:10px;overflow:hidden;}
+  .scan-frame{
+    position:absolute;inset:18% 15%;
+    border:2px solid #fff;border-radius:8px;
+    box-shadow:0 0 0 999px rgba(0,0,0,.35);
+    pointer-events:none;
+  }
+  .scan-line{
+    position:absolute;left:0;right:0;top:0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--danger),transparent);
+    animation:sweep 1.6s linear infinite;
+  }
+  @keyframes sweep{
+    0%{transform:translateY(0);}
+    100%{transform:translateY(100%);}
+  }
+  .muted{color:var(--ink-soft);font-size:13px;line-height:1.5;}
+  .link-btn{
+    background:none;border:none;color:var(--accent);
+    font-size:14px;text-decoration:underline;padding:6px 0;cursor:pointer;
+  }
+  /* ---- resultado ---- */
+  .verdict{
+    border-radius:10px;padding:16px;margin-bottom:14px;
+  }
+  .verdict--alerta{background:var(--danger-soft);border:1.5px solid var(--danger);}
+  .verdict--segura{background:var(--safe-soft);border:1.5px solid var(--safe);}
+  .verdict--sindatos{background:var(--warn-soft);border:1.5px solid var(--warn);}
+  .verdict h3{
+    margin:0 0 4px;font-family:var(--font-display);
+    text-transform:uppercase;letter-spacing:.03em;font-size:19px;
+  }
+  .verdict--alerta h3{color:var(--danger);}
+  .verdict--segura h3{color:var(--safe);}
+  .verdict--sindatos h3{color:var(--warn);}
+  .verdict p{margin:0;font-size:14px;}
+  .match-list{list-style:none;margin:10px 0 0;padding:0;}
+  .match-list li{
+    padding:6px 0;border-top:1px solid rgba(0,0,0,.08);
+    font-size:14px;display:flex;justify-content:space-between;
+  }
+  .match-list li span{color:var(--ink-soft);font-size:12px;}
+  details{margin-top:12px;font-size:14px;}
+  details summary{cursor:pointer;color:var(--accent);font-weight:600;}
+  /* ---- tabbar ---- */
+  nav.tabbar{
+    position:fixed;bottom:0;left:0;right:0;
+    max-width:480px;margin:0 auto;
+    background:#fff;border-top:1px solid var(--line);
+    display:flex;padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav.tabbar button{
+    flex:1;background:none;border:none;padding:12px 0 10px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    color:var(--ink-soft);font-family:var(--font-body);font-size:12px;
+    cursor:pointer;
+  }
+  nav.tabbar button.active{color:var(--accent);}
+  nav.tabbar svg{width:22px;height:22px;}
+  #toast{
+    position:fixed;left:50%;bottom:82px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:9px 16px;border-radius:999px;
+    font-size:13px;opacity:0;transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>AlergiaScan</h1>
+    <p>Escanea. Verifica. Compra tranquilo.</p>
+  </header>
+
+  <main>
+    <!-- ---------- PERFIL ---------- -->
+    <section id="view-perfil">
+      <h2>Tus alérgenos</h2>
+      <div class="card">
+        <div id="chips-grid"></div>
+      </div>
+
+      <h2>Alérgenos personalizados</h2>
+      <div class="card">
+        <div class="custom-row">
+          <input id="custom-input" type="text" placeholder="Ej: kiwi, sulfito de sodio...">
+          <button id="btn-add-custom" class="btn btn--accent">Añadir</button>
+        </div>
+        <p class="muted" style="margin-top:10px;">Estos se buscan como texto dentro de la lista de ingredientes, así que son menos exactos que los 14 alérgenos oficiales.</p>
+        <div id="custom-list"></div>
+      </div>
+
+      <h2>Trazas y contaminación cruzada</h2>
+      <div class="card">
+        <div class="switch-row">
+          <p>Avisarme también si el producto indica "puede contener trazas de..."</p>
+          <button id="toggle-traces" class="switch" aria-label="Activar aviso por trazas"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- ESCANEAR ---------- -->
+    <section id="view-escanear" hidden>
+      <h2>Escanear producto</h2>
+      <div class="card" id="escaneo-idle">
+        <p class="muted" style="margin-top:0;">Apunta la cámara al código de barras del producto.</p>
+        <button id="btnStart" class="btn btn--accent btn--block">Iniciar cámara</button>
+        <div id="scanArea" hidden>
+          <div class="scan-wrap">
+            <video id="video" autoplay playsinline muted></video>
+            <div class="scan-frame"><div class="scan-line"></div></div>
+          </div>
+          <button id="btnStopCam" class="link-btn">Detener cámara</button>
+        </div>
+        <p id="cameraMsg" class="muted" hidden></p>
+        <button id="btnToggleManual" class="link-btn">¿No funciona la cámara? Escribe el código a mano</button>
+        <form id="manualForm" hidden style="margin-top:8px;display:flex;gap:8px;">
+          <input id="manualInput" type="text" inputmode="numeric" placeholder="Código de barras" style="flex:1;padding:11px 12px;border-radius:8px;border:1.5px solid var(--line);font-size:15px;">
+          <button type="submit" class="btn btn--accent">Buscar</button>
+        </form>
+      </div>
+
+      <div id="resultArea"></div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <nav class="tabbar">
+    <button id="tab-perfil" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/><path d="M8.5 12.2l2.3 2.3 4.7-4.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Mi perfil
+    </button>
+    <button id="tab-escanear">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4v4M4 4h4M20 4v4M20 4h-4M4 20v-4M4 20h4M20 20v-4M20 20h-4" stroke-linecap="round"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6" stroke-linecap="round"/></svg>
+      Escanear
+    </button>
+  </nav>
+
+</div>
+
+<script>
+const ALLERGENS = [
+  {id:'gluten', label:'Gluten', tag:'en:gluten'},
+  {id:'crustaceos', label:'Crustáceos', tag:'en:crustaceans'},
+  {id:'huevos', label:'Huevos', tag:'en:eggs'},
+  {id:'pescado', label:'Pescado', tag:'en:fish'},
+  {id:'cacahuetes', label:'Cacahuetes', tag:'en:peanuts'},
+  {id:'soja', label:'Soja', tag:'en:soybeans'},
+  {id:'lacteos', label:'Leche / lácteos', tag:'en:milk'},
+  {id:'frutos_cascara', label:'Frutos de cáscara', tag:'en:nuts'},
+  {id:'apio', label:'Apio', tag:'en:celery'},
+  {id:'mostaza', label:'Mostaza', tag:'en:mustard'},
+  {id:'sesamo', label:'Sésamo', tag:'en:sesame-seeds'},
+  {id:'sulfitos', label:'Sulfitos / dióxido de azufre', tag:'en:sulphur-dioxide-and-sulphites'},
+  {id:'altramuces', label:'Altramuces', tag:'en:lupin'},
+  {id:'moluscos', label:'Moluscos', tag:'en:molluscs'}
+];
+
+let profile = { selected: new Set(), custom: [], traces: false };
+let stream = null, detecting = false, barcodeDetector = null;
+
+/* ---------------- almacenamiento ---------------- */
+async function loadProfile(){
+  try{
+    const res = await window.storage.get('alergiascan-profile', false);
+    if(res && res.value){
+      const p = JSON.parse(res.value);
+      profile.selected = new Set(p.selected || []);
+      profile.custom = p.custom || [];
+      profile.traces = !!p.traces;
+    }
+  }catch(e){ /* aún no hay perfil guardado */ }
+  renderChips();
+  renderCustomList();
+  renderTraces();
+}
+let saveTimer = null;
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>saveProfile(1), 450);
+}
+async function saveProfile(attempt){
+  attempt = attempt || 1;
+  const payload = JSON.stringify({selected:[...profile.selected], custom:profile.custom, traces:profile.traces});
+  try{
+    const result = await window.storage.set('alergiascan-profile', payload, false);
+    if(result){
+      showToast('Perfil guardado');
+    }else if(attempt < 3){
+      setTimeout(()=>saveProfile(attempt+1), 500);
+    }else{
+      showToast('No se pudo guardar, revisa tu conexión');
+    }
+  }catch(e){
+    if(attempt < 3){
+      setTimeout(()=>saveProfile(attempt+1), 500);
+    }else{
+      showToast('No se pudo guardar, revisa tu conexión');
+    }
+  }
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._h);
+  showToast._h = setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+/* ---------------- render perfil ---------------- */
+function renderChips(){
+  const grid = document.getElementById('chips-grid');
+  grid.innerHTML = '';
+  ALLERGENS.forEach(a=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip' + (profile.selected.has(a.id) ? ' chip--on' : '');
+    btn.textContent = a.label;
+    btn.addEventListener('click', ()=>{
+      profile.selected.has(a.id) ? profile.selected.delete(a.id) : profile.selected.add(a.id);
+      renderChips();
+      scheduleSave();
+    });
+    grid.appendChild(btn);
+  });
+}
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+function renderCustomList(){
+  const list = document.getElementById('custom-list');
+  list.innerHTML = '';
+  profile.custom.forEach((c, idx)=>{
+    const pill = document.createElement('span');
+    pill.className = 'pill';
+    pill.innerHTML = escapeHtml(c) + ' <button type="button" class="pill__remove" data-idx="'+idx+'" aria-label="Quitar">&times;</button>';
+    list.appendChild(pill);
+  });
+  list.querySelectorAll('.pill__remove').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      profile.custom.splice(parseInt(e.currentTarget.dataset.idx,10), 1);
+      renderCustomList();
+      scheduleSave();
+    });
+  });
+}
+function renderTraces(){
+  document.getElementById('toggle-traces').classList.toggle('switch--on', profile.traces);
+}
+document.getElementById('btn-add-custom').addEventListener('click', ()=>{
+  const input = document.getElementById('custom-input');
+  const val = input.value.trim();
+  if(!val) return;
+  if(!profile.custom.some(c=>c.toLowerCase()===val.toLowerCase())){
+    profile.custom.push(val);
+    renderCustomList();
+    scheduleSave();
+  }
+  input.value = '';
+});
+document.getElementById('toggle-traces').addEventListener('click', ()=>{
+  profile.traces = !profile.traces;
+  renderTraces();
+  scheduleSave();
+});
+
+/* ---------------- pestañas ---------------- */
+const viewPerfil = document.getElementById('view-perfil');
+const viewEscanear = document.getElementById('view-escanear');
+const tabPerfil = document.getElementById('tab-perfil');
+const tabEscanear = document.getElementById('tab-escanear');
+tabPerfil.addEventListener('click', ()=>{
+  viewPerfil.hidden = false; viewEscanear.hidden = true;
+  tabPerfil.classList.add('active'); tabEscanear.classList.remove('active');
+});
+tabEscanear.addEventListener('click', ()=>{
+  viewPerfil.hidden = true; viewEscanear.hidden = false;
+  tabEscanear.classList.add('active'); tabPerfil.classList.remove('active');
+});
+
+/* ---------------- cámara y escaneo ---------------- */
+const btnStart = document.getElementById('btnStart');
+const btnStopCam = document.getElementById('btnStopCam');
+const btnToggleManual = document.getElementById('btnToggleManual');
+const manualForm = document.getElementById('manualForm');
+const cameraMsg = document.getElementById('cameraMsg');
+const scanArea = document.getElementById('scanArea');
+
+btnToggleManual.addEventListener('click', ()=>{
+  manualForm.hidden = !manualForm.hidden;
+});
+manualForm.addEventListener('submit', e=>{
+  e.preventDefault();
+  const code = document.getElementById('manualInput').value.trim();
+  if(code) handleCode(code);
+});
+
+btnStart.addEventListener('click', startCamera);
+btnStopCam.addEventListener('click', stopCamera);
+
+async function startCamera(){
+  cameraMsg.hidden = true;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+    await video.play();
+    scanArea.hidden = false;
+    btnStart.hidden = true;
+    if('BarcodeDetector' in window){
+      barcodeDetector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+      detecting = true;
+      detectLoop();
+    }else{
+      cameraMsg.textContent = 'Tu navegador no soporta detección automática de códigos. Usa la entrada manual mientras tanto.';
+      cameraMsg.hidden = false;
+      manualForm.hidden = false;
+    }
+  }catch(err){
+    cameraMsg.textContent = 'No se pudo acceder a la cámara (' + err.message + '). Escribe el código manualmente.';
+    cameraMsg.hidden = false;
+    manualForm.hidden = false;
+  }
+}
+async function detectLoop(){
+  if(!detecting) return;
+  try{
+    const codes = await barcodeDetector.detect(document.getElementById('video'));
+    if(codes.length){
+      detecting = false;
+      const code = codes[0].rawValue;
+      stopCamera();
+      handleCode(code);
+      return;
+    }
+  }catch(e){ /* frame sin código legible, seguimos intentando */ }
+  requestAnimationFrame(detectLoop);
+}
+function stopCamera(){
+  detecting = false;
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+  scanArea.hidden = true;
+  btnStart.hidden = false;
+}
+
+/* ---------------- búsqueda y verificación ---------------- */
+async function handleCode(code){
+  document.getElementById('resultArea').innerHTML =
+    '<p class="muted">Buscando ' + escapeHtml(code) + ' en Open Food Facts…</p>';
+  try{
+    const url = 'https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(code) +
+      '.json?fields=product_name,product_name_es,ingredients_text,ingredients_text_es,allergens_tags,traces_tags,image_front_small_url,brands';
+    const res = await fetch(url);
+    const data = await res.json();
+    if(data.status === 0 || !data.product){
+      renderResult({found:false, code});
+    }else{
+      renderResult({found:true, code, product:data.product});
+    }
+  }catch(e){
+    renderResult({found:false, code, error:true});
+  }
+}
+function checkAllergens(product){
+  const matched = [];
+  const prodAllergens = product.allergens_tags || [];
+  const prodTraces = product.traces_tags || [];
+  ALLERGENS.filter(a=>profile.selected.has(a.id)).forEach(a=>{
+    if(prodAllergens.includes(a.tag)) matched.push({label:a.label, type:'ingrediente'});
+    else if(profile.traces && prodTraces.includes(a.tag)) matched.push({label:a.label, type:'trazas'});
+  });
+  const text = ((product.ingredients_text_es || product.ingredients_text) || '').toLowerCase();
+  profile.custom.forEach(c=>{
+    if(text.includes(c.toLowerCase())) matched.push({label:c, type:'texto libre'});
+  });
+  return matched;
+}
+function renderResult({found, code, product, error}){
+  const area = document.getElementById('resultArea');
+  if(!found){
+    area.innerHTML =
+      '<div class="verdict verdict--sindatos"><h3>Sin datos</h3><p>' +
+      (error ? 'No se pudo consultar la base de datos ahora mismo.' : 'No encontramos el código ' + escapeHtml(code) + ' en Open Food Facts.') +
+      ' Revisa la etiqueta del producto manualmente.</p></div>' +
+      '<button class="btn btn--ghost btn--block" id="btnScanAgainNotFound">Escanear otro</button>';
+    document.getElementById('btnScanAgainNotFound').addEventListener('click', ()=>{ area.innerHTML=''; });
+    return;
+  }
+  const matched = checkAllergens(product);
+  const name = product.product_name_es || product.product_name || 'Producto sin nombre';
+  const brand = product.brands ? ' · ' + product.brands : '';
+  const ingredients = product.ingredients_text_es || product.ingredients_text || 'No disponible en la base de datos.';
+  const hasAnyAllergenData = (product.allergens_tags && product.allergens_tags.length) || (product.ingredients_text || product.ingredients_text_es);
+
+  let verdictClass, verdictTitle, verdictText;
+  if(matched.length){
+    verdictClass = 'verdict--alerta';
+    verdictTitle = 'Alerta';
+    verdictText = 'Este producto puede contener alérgenos de tu lista.';
+  }else if(!hasAnyAllergenData){
+    verdictClass = 'verdict--sindatos';
+    verdictTitle = 'Datos insuficientes';
+    verdictText = 'Open Food Facts no tiene ingredientes/alérgenos cargados para este producto. No lo descartes solo con esto.';
+  }else{
+    verdictClass = 'verdict--segura';
+    verdictTitle = 'Sin coincidencias';
+    verdictText = 'No se detectaron alérgenos de tu lista en los datos disponibles.';
+  }
+
+  let matchHtml = '';
+  if(matched.length){
+    matchHtml = '<ul class="match-list">' + matched.map(m =>
+      '<li>' + escapeHtml(m.label) + ' <span>' + m.type + '</span></li>'
+    ).join('') + '</ul>';
+  }
+
+  area.innerHTML =
+    '<div class="card" style="margin-bottom:14px;">' +
+      '<strong>' + escapeHtml(name) + '</strong>' + escapeHtml(brand) +
+    '</div>' +
+    '<div class="verdict ' + verdictClass + '"><h3>' + verdictTitle + '</h3><p>' + verdictText + '</p>' + matchHtml + '</div>' +
+    '<details><summary>Ver ingredientes</summary><p class="muted">' + escapeHtml(ingredients) + '</p></details>' +
+    '<button class="btn btn--ghost btn--block" style="margin-top:14px;" id="btnScanAgain">Escanear otro</button>' +
+    '<p class="muted" style="margin-top:14px;">Verifica siempre la etiqueta física. Los datos vienen de Open Food Facts, una base colaborativa que puede estar incompleta o desactualizada.</p>';
+
+  document.getElementById('btnScanAgain').addEventListener('click', ()=>{ area.innerHTML=''; });
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* si falla, la app sigue funcionando igual online */ });
+  });
+}
+
+loadProfile();
+</script>
+</body>
+</html>
