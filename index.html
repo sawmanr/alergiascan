@@ -330,16 +330,16 @@ let profile = { selected: new Set(), custom: [], traces: false };
 let stream = null, detecting = false, barcodeDetector = null;
 
 /* ---------------- almacenamiento ---------------- */
-async function loadProfile(){
+function loadProfile(){
   try{
-    const res = await window.storage.get('alergiascan-profile', false);
-    if(res && res.value){
-      const p = JSON.parse(res.value);
+    const raw = localStorage.getItem('alergiascan-profile');
+    if(raw){
+      const p = JSON.parse(raw);
       profile.selected = new Set(p.selected || []);
       profile.custom = p.custom || [];
       profile.traces = !!p.traces;
     }
-  }catch(e){ /* aún no hay perfil guardado */ }
+  }catch(e){ /* aún no hay perfil guardado o el navegador bloquea el almacenamiento */ }
   renderChips();
   renderCustomList();
   renderTraces();
@@ -347,26 +347,15 @@ async function loadProfile(){
 let saveTimer = null;
 function scheduleSave(){
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(()=>saveProfile(1), 450);
+  saveTimer = setTimeout(saveProfile, 300);
 }
-async function saveProfile(attempt){
-  attempt = attempt || 1;
-  const payload = JSON.stringify({selected:[...profile.selected], custom:profile.custom, traces:profile.traces});
+function saveProfile(){
   try{
-    const result = await window.storage.set('alergiascan-profile', payload, false);
-    if(result){
-      showToast('Perfil guardado');
-    }else if(attempt < 3){
-      setTimeout(()=>saveProfile(attempt+1), 500);
-    }else{
-      showToast('No se pudo guardar, revisa tu conexión');
-    }
+    const payload = JSON.stringify({selected:[...profile.selected], custom:profile.custom, traces:profile.traces});
+    localStorage.setItem('alergiascan-profile', payload);
+    showToast('Perfil guardado');
   }catch(e){
-    if(attempt < 3){
-      setTimeout(()=>saveProfile(attempt+1), 500);
-    }else{
-      showToast('No se pudo guardar, revisa tu conexión');
-    }
+    showToast('No se pudo guardar en este dispositivo');
   }
 }
 function showToast(msg){

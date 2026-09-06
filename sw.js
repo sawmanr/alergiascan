@@ -1,10 +1,10 @@
-const CACHE_NAME = 'alergiascan-v1';
+const CACHE_NAME = 'alergiascan-v2';
 const APP_SHELL = [
-  './',
-  './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './icon-192-maskable.png',
+  './icon-512-maskable.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -23,15 +23,28 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// App shell: cache primero. Todo lo demás (ej. Open Food Facts) va directo a la red,
-// para que los datos de producto siempre estén actualizados.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
+  const isPage = event.request.mode === 'navigate' || url.pathname.endsWith('.html');
+
+  if (isPage) {
+    // Páginas: red primero, para que siempre veas la última versión.
+    // Si no hay conexión, usa la última copia guardada.
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
+          return res;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Íconos y manifest: caché primero (cambian rara vez).
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request);
-    })
+    caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
 });
