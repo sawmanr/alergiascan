@@ -385,6 +385,23 @@ const ALLERGENS = [
   {id:'moluscos', label:'Moluscos', tag:'en:molluscs'}
 ];
 
+const USDA_KEYWORDS = {
+  gluten: ['wheat','barley','rye','malt','gluten'],
+  crustaceos: ['shrimp','crab','lobster','crayfish','prawn','crustacean'],
+  huevos: ['egg'],
+  pescado: ['fish','anchovy','salmon','tuna','cod','bass'],
+  cacahuetes: ['peanut'],
+  soja: ['soy','soya'],
+  lacteos: ['milk','dairy','whey','casein','lactose','butter','cream','cheese'],
+  frutos_cascara: ['almond','walnut','cashew','pecan','pistachio','hazelnut','macadamia','tree nut'],
+  apio: ['celery'],
+  mostaza: ['mustard'],
+  sesamo: ['sesame'],
+  sulfitos: ['sulfite','sulphite','sulfur dioxide'],
+  altramuces: ['lupin','lupine'],
+  moluscos: ['clam','mussel','oyster','scallop','squid','octopus','snail','mollusk','mollusc']
+};
+
 let profile = { selected: new Set(), custom: [], traces: false };
 let stream = null, detecting = false, barcodeDetector = null;
 
@@ -608,9 +625,16 @@ async function handleCode(code){
     const res = await fetch(url);
     const data = await res.json();
     if(data.status === 0 || !data.product){
-      renderResult({found:false, code});
+      document.getElementById('resultArea').innerHTML =
+        '<p class="muted">No está en Open Food Facts, probando una segunda base de datos…</p>';
+      const usdaProduct = await lookupUSDA(code);
+      if(usdaProduct){
+        renderResult({found:true, code, product:usdaProduct, source:'usda'});
+      }else{
+        renderResult({found:false, code});
+      }
     }else{
-      renderResult({found:true, code, product:data.product});
+      renderResult({found:true, code, product:data.product, source:'off'});
     }
   }catch(e){
     renderResult({found:false, code, error:true});
@@ -637,22 +661,61 @@ function checkAllergens(product){
   });
   return matched;
 }
-function renderResult({found, code, product, error}){
+
+// Fallback: USDA no tiene alérgenos etiquetados como Open Food Facts, así que
+// buscamos palabras clave en inglés dentro del texto de ingredientes.
+// Es menos preciso — se marca claramente en la interfaz.
+function checkAllergensUSDA(ingredientsTextEn){
+  const matched = [];
+  const text = (ingredientsTextEn || '').toLowerCase();
+  ALLERGENS.filter(a=>profile.selected.has(a.id)).forEach(a=>{
+    const words = USDA_KEYWORDS[a.id] || [];
+    if(words.some(w=>text.includes(w))) matched.push({label:a.label, type:'ingrediente (EN)'});
+  });
+  profile.custom.forEach(c=>{
+    if(text.includes(c.toLowerCase())) matched.push({label:c, type:'texto libre'});
+  });
+  return matched;
+}
+
+// El proxy de Cloudflare Workers esconde la clave real de USDA — la app nunca
+// habla directamente con USDA ni expone ninguna clave en el código.
+const USDA_PROXY_URL = 'https://alergiascan-usda-proxy.sawmanr.workers.dev/';
+async function lookupUSDA(code){
+  try{
+    const url = USDA_PROXY_URL + '?barcode=' + encodeURIComponent(code);
+    const res = await fetch(url);
+    if(!res.ok) return null;
+    const data = await res.json();
+    const foods = data.foods || [];
+    const altCode = code.length === 12 ? '0' + code : (code.length === 13 && code[0] === '0' ? code.slice(1) : null);
+    const match = foods.find(f => f.gtinUpc === code || (altCode && f.gtinUpc === altCode));
+    return match || null;
+  }catch(e){
+    return null;
+  }
+}
+function renderResult({found, code, product, error, source}){
   const area = document.getElementById('resultArea');
   if(!found){
+    const offUrl = 'https://world.openfoodfacts.org/product/' + encodeURIComponent(code);
     area.innerHTML =
       '<div class="verdict verdict--sindatos"><h3>Sin datos</h3><p>' +
-      (error ? 'No se pudo consultar la base de datos ahora mismo.' : 'No encontramos el código ' + escapeHtml(code) + ' en Open Food Facts.') +
+      (error ? 'No se pudo consultar las bases de datos ahora mismo.' : 'No encontramos el código ' + escapeHtml(code) + ' en ninguna de las dos bases de datos.') +
       ' Revisa la etiqueta del producto manualmente.</p></div>' +
+      '<a class="btn btn--ghost btn--block" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:10px;" href="' + offUrl + '" target="_blank" rel="noopener">Añadir este producto a Open Food Facts</a>' +
       '<button class="btn btn--ghost btn--block" id="btnScanAgainNotFound">Escanear otro</button>';
     document.getElementById('btnScanAgainNotFound').addEventListener('click', resetResultArea);
     return;
   }
-  const matched = checkAllergens(product);
-  const name = product.product_name_es || product.product_name || 'Producto sin nombre';
-  const brand = product.brands ? ' · ' + product.brands : '';
-  const ingredients = product.ingredients_text_es || product.ingredients_text || 'No disponible en la base de datos.';
-  const hasAnyAllergenData = (product.allergens_tags && product.allergens_tags.length) || (product.ingredients_text || product.ingredients_text_es);
+
+  const isUSDA = source === 'usda';
+  const matched = isUSDA ? checkAllergensUSDA(product.ingredients) : checkAllergens(product);
+  const name = isUSDA ? (product.description || 'Producto sin nombre') : (product.product_name_es || product.product_name || 'Producto sin nombre');
+  const brandRaw = isUSDA ? (product.brandName || product.brandOwner) : product.brands;
+  const brand = brandRaw ? ' · ' + brandRaw : '';
+  const ingredients = isUSDA ? (product.ingredients || 'No disponible.') : (product.ingredients_text_es || product.ingredients_text || 'No disponible en la base de datos.');
+  const hasAnyAllergenData = isUSDA ? !!product.ingredients : ((product.allergens_tags && product.allergens_tags.length) || (product.ingredients_text || product.ingredients_text_es));
 
   let verdictClass, verdictTitle, verdictText;
   if(matched.length){
@@ -662,7 +725,7 @@ function renderResult({found, code, product, error}){
   }else if(!hasAnyAllergenData){
     verdictClass = 'verdict--sindatos';
     verdictTitle = 'Datos insuficientes';
-    verdictText = 'Open Food Facts no tiene ingredientes/alérgenos cargados para este producto. No lo descartes solo con esto.';
+    verdictText = 'No hay ingredientes/alérgenos cargados para este producto. No lo descartes solo con esto.';
   }else{
     verdictClass = 'verdict--segura';
     verdictTitle = 'Sin coincidencias';
@@ -676,6 +739,10 @@ function renderResult({found, code, product, error}){
     ).join('') + '</ul>';
   }
 
+  const sourceNote = isUSDA
+    ? '<p class="muted" style="margin-top:14px;">Producto no encontrado en Open Food Facts — este resultado viene de USDA FoodData Central (EE.UU.) comparando palabras clave en inglés, así que es menos preciso. Revisa la etiqueta con más cuidado.</p>'
+    : '<p class="muted" style="margin-top:14px;">Verifica siempre la etiqueta física. Los datos vienen de Open Food Facts, una base colaborativa que puede estar incompleta o desactualizada.</p>';
+
   area.innerHTML =
     '<div class="card" style="margin-bottom:14px;">' +
       '<strong>' + escapeHtml(name) + '</strong>' + escapeHtml(brand) +
@@ -683,7 +750,7 @@ function renderResult({found, code, product, error}){
     '<div class="verdict ' + verdictClass + '"><h3>' + verdictTitle + '</h3><p>' + verdictText + '</p>' + matchHtml + '</div>' +
     '<details><summary>Ver ingredientes</summary><p class="muted">' + escapeHtml(ingredients) + '</p></details>' +
     '<button class="btn btn--ghost btn--block" style="margin-top:14px;" id="btnScanAgain">Escanear otro</button>' +
-    '<p class="muted" style="margin-top:14px;">Verifica siempre la etiqueta física. Los datos vienen de Open Food Facts, una base colaborativa que puede estar incompleta o desactualizada.</p>';
+    sourceNote;
 
   document.getElementById('btnScanAgain').addEventListener('click', resetResultArea);
 }
